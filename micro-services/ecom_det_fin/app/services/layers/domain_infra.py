@@ -4,6 +4,8 @@ from typing import Tuple
 import datetime as dt
 from urllib.parse import urlparse
 import idna
+import tldextract
+_extract = tldextract.TLDExtract(suffix_list_urls=())
 from ...config import settings
 from difflib import SequenceMatcher
 
@@ -16,13 +18,14 @@ except Exception:  # pragma: no cover
 class LayerResult:
     score: float  # 0..100 higher = riskier
     message: str
+    status: str = "checked"
 
 
 def _domain_age_days(domain: str) -> int | None:
     if not whois:
         return None
     try:
-        data = whois.whois(domain)
+        data = whois.whois(domain, timeout=3, quiet=True)
         created = data.creation_date
         if isinstance(created, list):
             created = created[0]
@@ -32,7 +35,7 @@ def _domain_age_days(domain: str) -> int | None:
             created_dt = created
         else:
             return None
-        return (dt.datetime.utcnow() - created_dt).days
+        return (dt.datetime.now(dt.timezone.utc) - created_dt.replace(tzinfo=dt.timezone.utc)).days
     except Exception:
         return None
 
@@ -41,11 +44,11 @@ def _detect_typosquatting(domain: str) -> float:
     """Advanced typosquatting detection with multiple strategies"""
     if not domain:
         return 0.0
-    
+
     risk = 0.0
     parts = domain.split('.')
-    sld = parts[-2] if len(parts) >= 2 else parts[0]
-    
+    sld = _extract(domain).domain
+
     # Known typosquatting patterns for major brands
     typosquat_patterns = {
         "amazon": ["amzon", "amazom", "amazone", "amazn", "amaozn", "amaxon", "amzaon"],
@@ -56,35 +59,35 @@ def _detect_typosquatting(domain: str) -> float:
         "apple": ["aple", "appel", "aplle", "applle"],
         "microsoft": ["mircosoft", "microsooft", "micorsoft"],
     }
-    
+
     # Check exact matches against known typosquats
     for brand, patterns in typosquat_patterns.items():
         if sld.lower() in patterns:
             return 85.0  # Critical risk for known typosquats
-    
+
     # Advanced character-level analysis
     for brand, canon_list in settings.canonical_brands.items():
         # Skip if already canonical
-        if any(c in domain for c in canon_list):
+        if any(domain == c or domain.endswith("." + c) for c in canon_list):
             continue
-            
+
         brand_lower = brand.lower()
         sld_lower = sld.lower()
-        
+
         # Character substitution detection
         if len(sld_lower) == len(brand_lower):
             diff_count = sum(1 for a, b in zip(sld_lower, brand_lower) if a != b)
             if diff_count == 1:  # Single character difference
                 return 80.0  # Very high risk
-            elif diff_count == 2:  # Two character difference  
+            elif diff_count == 2:  # Two character difference
                 return 70.0  # High risk
-        
+
         # Character omission/insertion detection
         elif abs(len(sld_lower) - len(brand_lower)) <= 2:
             sim = SequenceMatcher(None, sld_lower, brand_lower).ratio()
             if sim >= 0.85:  # Very similar despite length difference
                 return 75.0  # Very high risk
-    
+
     return risk
 
 
@@ -162,15 +165,15 @@ def analyze(url: str) -> LayerResult:
     # Brand lookalike vs canonical domains (e.g., amzon vs amazon)
     try:
         parts = domain.split('.')
-        sld = parts[-2] if len(parts) >= 2 else parts[0]
+        sld = _extract(domain).domain
         # Skip lookalike on hosted storefronts (*.myshopify.com, etc.)
         if not any(domain.endswith(suf) for suf in settings.hosted_storefront_suffixes):
             for brand, canon_list in settings.canonical_brands.items():
                 # Skip if domain already a canonical
-                if any(c in domain for c in canon_list):
+                if any(domain == c or domain.endswith("." + c) for c in canon_list):
                     continue
                 sim = SequenceMatcher(None, sld.lower(), brand.lower()).ratio()
-                
+
                 # CRITICAL: Typosquatting detection with graduated penalties
                 if sim >= 0.9:
                     # Very close match - likely typosquatting (e.g., amazom, amzon)
@@ -192,7 +195,7 @@ def analyze(url: str) -> LayerResult:
 
     # Hyphen/digit/length heuristics on SLD
     try:
-        sld = domain.split('.')[-2] if '.' in domain else domain
+        sld = _extract(domain).domain
         hyphens = sld.count('-')
         digits = sum(ch.isdigit() for ch in sld)
         if hyphens >= 2:
@@ -221,4 +224,4 @@ def analyze(url: str) -> LayerResult:
         pass
 
     message = "; ".join(reasons) if reasons else "No major domain/infra red flags"
-    return LayerResult(score=min(100.0, risk), message=message)
+    return LayerResult(score=min(100.0, risk), message=message, status="threat" if typosquat_risk >= 75 else "unknown" if age_days is None else "checked")

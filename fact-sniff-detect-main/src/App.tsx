@@ -10,7 +10,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import FakeNewsDetector from "./pages/FakeNewsDetector";
-// ...existing code...
+
 import FakeTweetDetector from "./pages/FakeTweetDetector";
 import AIImageDetector from "./pages/AIImageDetector";
 import AITextDetector from "./pages/AITextDetector";
@@ -18,6 +18,8 @@ import ResultHistory from "./pages/ResultHistory";
 import Settings from "./pages/Settings";
 import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
+import SiteDetector from "./pages/SiteDetector";
+import JobDetector from "./pages/JobDetector";
 import APIDocs from "./pages/APIDocs";
 
 const queryClient = new QueryClient();
@@ -36,7 +38,7 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/api-docs" element={<APIDocs />} />
-                
+
                 {/* Protected Routes */}
                 <Route path="/dashboard" element={
                   <ProtectedRoute>
@@ -48,7 +50,9 @@ const App = () => (
                     <FakeNewsDetector />
                   </ProtectedRoute>
                 } />
-// ...existing code...
+
+                <Route path="/fake-ecommerce" element={<ProtectedRoute><SiteDetector /></ProtectedRoute>} />
+                <Route path="/scam-jobs" element={<ProtectedRoute><JobDetector /></ProtectedRoute>} />
                 <Route path="/fake-tweets" element={
                   <ProtectedRoute>
                     <FakeTweetDetector />
@@ -74,7 +78,7 @@ const App = () => (
                     <Settings />
                   </ProtectedRoute>
                 } />
-                
+
                 {/* 404 Route */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

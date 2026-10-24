@@ -1,7 +1,8 @@
 from __future__ import annotations
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 import json
+import math
 
 DEFAULT_WEIGHTS = {
     "domain_infra": 0.25,  # INCREASED: Domain analysis critical for typosquatting
@@ -50,14 +51,14 @@ class Settings(BaseSettings):
         "paypal": ["paypal.com"],
         "stripe": ["stripe.com"],
     })
-    
+
     # Major verified platforms (should get extremely low risk scores)
     verified_major_platforms: list[str] = Field(default_factory=lambda: [
         "amazon.com", "amazon.in", "amazon.co.uk", "amazon.ca", "amazon.de", "amazon.fr",
         "flipkart.com", "myntra.com", "shopsy.com", "walmart.com", "target.com", "bestbuy.com",
         "google.com", "apple.com", "microsoft.com", "paypal.com", "stripe.com"
     ])
-    
+
     # Multi-vendor marketplaces (require merchant verification)
     marketplace_platforms: list[str] = Field(default_factory=lambda: [
         "myshopify.com", "etsy.com", "ebay.com", "aliexpress.com", "alibaba.com",
@@ -84,17 +85,17 @@ class Settings(BaseSettings):
 
     # Strict mode tightens thresholds and adds risk floors for certain findings
     strict_mode: bool = Field(default=True, alias="STRICT_MODE")
-    
+
     # Business verification APIs
     opencorporates_api_key: str | None = Field(default=None, alias="OPENCORPORATES_API_KEY")
     companies_house_api_key: str | None = Field(default=None, alias="COMPANIES_HOUSE_API_KEY")
-    
+
     # Trusted registrars and hosting providers
     trusted_registrars: list[str] = Field(default_factory=lambda: [
         "namecheap", "godaddy", "google", "cloudflare", "amazon", "gandi", "hover", "name.com",
         "network solutions", "enom", "tucows", "1&1", "ionos", "ovh"
     ])
-    
+
     trusted_hosting_asns: list[int] = Field(default_factory=lambda: [
         13335,  # Cloudflare
         16509,  # Amazon AWS
@@ -103,21 +104,19 @@ class Settings(BaseSettings):
         20940,  # Akamai
         54113,  # Fastly
     ])
-    
+
     # Suspicious indicators for deeper analysis
     high_risk_countries: list[str] = Field(default_factory=lambda: [
         "CN", "RU", "PK", "BD", "NG", "GH"  # Countries with high fraud rates
     ])
-    
+
     # Payment gateway whitelist (trusted processors)
     trusted_payment_processors: list[str] = Field(default_factory=lambda: [
-        "stripe", "paypal", "razorpay", "payu", "cashfree", "instamojo", "square", 
+        "stripe", "paypal", "razorpay", "payu", "cashfree", "instamojo", "square",
         "shopify payments", "woocommerce", "authorize.net"
     ])
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def weights(self) -> dict[str, float]:
@@ -126,10 +125,11 @@ class Settings(BaseSettings):
                 data = json.loads(self.risk_weights_json)
                 # Ensure weights sum roughly to 1.0; normalize if needed
                 total = sum(data.values())
-                if total > 0:
+                if set(data) == set(DEFAULT_WEIGHTS) and all(isinstance(v, (int, float)) and math.isfinite(v) and v >= 0 for v in data.values()) and math.isfinite(total) and total > 0:
                     return {k: float(v) / total for k, v in data.items()}
             except Exception:
                 pass
-        return DEFAULT_WEIGHTS
+        total = sum(DEFAULT_WEIGHTS.values())
+        return {k: v / total for k, v in DEFAULT_WEIGHTS.items()}
 
 settings = Settings()

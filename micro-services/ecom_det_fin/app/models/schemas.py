@@ -1,15 +1,23 @@
 from __future__ import annotations
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, field_validator
 from typing import Optional, List, Dict
 from datetime import datetime
+from factfinder.network import validate_url
 
 class CheckSiteRequest(BaseModel):
     url: HttpUrl
+
+    @field_validator("url")
+    @classmethod
+    def public_url(cls, value):
+        validate_url(str(value))
+        return value
 
 class Reason(BaseModel):
     layer: str
     message: str
     weight: float
+    status: str = "unknown"
     score: float
 
 class Advice(BaseModel):

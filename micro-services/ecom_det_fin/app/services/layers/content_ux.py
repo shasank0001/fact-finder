@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple
 import re
 import httpx
+from factfinder.network import SafeAsyncClient
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from ...config import settings
@@ -20,11 +21,12 @@ FAKE_URGENCY_PHRASES = [
 class LayerResult:
     score: float
     message: str
+    status: str = "checked"
 
 async def _fetch_html(url: str) -> str | None:
     try:
         timeout = httpx.Timeout(3.0, connect=1.5)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        async with SafeAsyncClient(timeout=timeout, follow_redirects=True) as client:
             res = await client.get(url)
             if res.status_code < 400 and "text/html" in res.headers.get("content-type", ""):
                 return res.text
@@ -64,7 +66,7 @@ def _check_fake_urgency(soup: BeautifulSoup) -> tuple[int, list[str]]:
 async def analyze(url: str) -> LayerResult:
     html = await _fetch_html(url)
     if not html:
-        return LayerResult(score=20.0, message="Could not fetch page or not HTML")
+        return LayerResult(score=25.0, message="Could not fetch page or not HTML", status="error")
     soup = BeautifulSoup(html, "lxml")
 
     total_risk = 0
@@ -73,7 +75,7 @@ async def analyze(url: str) -> LayerResult:
     # Platform-aware: if root domain is a known platform and not a hosted storefront, don't apply policy penalties
     parsed = urlparse(url)
     host = (parsed.hostname or '').lower()
-    is_platform_root = any(host.endswith(p) for p in settings.platform_domains)
+    is_platform_root = any(host == p or host.endswith("." + p) for p in settings.platform_domains)
     is_hosted_store = any(host.endswith(suf) for suf in settings.hosted_storefront_suffixes)
     if not is_platform_root or is_hosted_store:
         r1, rs1 = _check_policy_presence(soup)
@@ -125,7 +127,7 @@ async def analyze(url: str) -> LayerResult:
         if samples:
             base = url
             timeout = httpx.Timeout(2.0, connect=1.0)
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            async with SafeAsyncClient(timeout=timeout, follow_redirects=True) as client:
                 for href in samples[:3]:
                     full = urljoin(base, href)
                     try:
@@ -158,7 +160,7 @@ async def analyze(url: str) -> LayerResult:
             title = (soup.title.string or "").lower() if soup.title else ""
             for brand, canon_list in settings.canonical_brands.items():
                 if brand in title:
-                    if not any(c in url for c in canon_list):
+                    if not any(host == c or host.endswith("." + c) for c in canon_list):
                         total_risk += 25
                         reasons.append(f"Brand lookalike: mentions '{brand}' but domain not canonical")
                         break

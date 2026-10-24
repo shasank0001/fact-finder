@@ -1,14 +1,2 @@
-# This file lists Python dependencies for the project.
-# Add your required packages below, one per line.
-fastapi
-uvicorn
-python-dotenv
-pydantic
-requests
-beautifulsoup4
-whois
-httpx
-tldextract
-Pillow
-scikit-learn
-opencv-python
+# Python services are installed from the repository root. Frontend dependencies use npm.
+-r ../requirements.txt

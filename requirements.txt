@@ -1,60 +1,17 @@
-# Development and Documentation
-black
-flake8
-isort
-mkdocs
-pip
-
-# Core ML and AI Libraries
-langchain-ollama
-langchain-core
-langchain-community
-streamlit
-python-dotenv
-
-# Web Framework and HTTP
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-httpx==0.27.0
-
-# Data Validation and Models
-pydantic==2.8.2
-pydantic-settings==2.3.4
-
-# Database (for future integration)
-sqlmodel==0.0.21
-
-# Network and Security Analysis
-python-whois==0.8.0
-python-dateutil==2.9.0.post0
-
-# HTML Parsing and Content Analysis
-beautifulsoup4==4.12.3
-lxml==5.3.0
-
-# Text Processing and ML
-textblob==0.18.0.post0
-scikit-learn==1.5.1
-numpy==1.26.4
-
-# Image Processing
-pillow==10.4.0
-
-# AI/ML Models for Image Detection
-torch
-torchvision
-transformers
-
-# Monitoring and Observability (optional)
-opentelemetry-api==1.26.0
-opentelemetry-sdk==1.26.0
-opentelemetry-instrumentation-fastapi==0.47b0
-
-# Testing
-pytest==8.3.2
-
-# International Domain Names
-idna
-
-# Package for self-installation
--e .
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+httpx>=0.27,<0.29
+httpcore>=1.0.5,<2
+pydantic>=2.8,<3
+pydantic-settings>=2.3,<3
+sqlmodel>=0.0.21,<0.1
+python-multipart>=0.0.18,<1
+python-dotenv>=1,<2
+python-whois>=0.9,<1
+beautifulsoup4>=4.12,<5
+lxml>=5,<7
+pillow>=10.4,<13
+ImageHash>=4.3,<5
+google-genai>=1,<2
+tldextract>=5,<6
+pytest>=8,<9

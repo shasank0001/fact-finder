@@ -7,7 +7,7 @@ from pathlib import Path
 if settings.db_url.startswith("sqlite"):
     Path("data").mkdir(parents=True, exist_ok=True)
 
-engine = create_engine(settings.db_url, echo=False)
+engine = create_engine(settings.db_url, echo=False, connect_args={"check_same_thread": False} if settings.db_url.startswith("sqlite") else {})
 
 def init_db() -> None:
     # Import tables to register metadata

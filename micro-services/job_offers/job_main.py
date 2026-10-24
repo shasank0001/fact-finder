@@ -1,4 +1,4 @@
-from job_offers.job_det import FakeInternshipDetectorAPI, CompanyInfoRequest
+from .job_det import FakeInternshipDetectorAPI, CompanyInfoRequest
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,4 +33,4 @@ def main():
 
 if __name__ == "__main__":
     main()
- 
+

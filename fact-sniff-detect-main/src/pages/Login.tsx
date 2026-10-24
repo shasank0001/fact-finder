@@ -30,7 +30,7 @@ const Login = () => {
       toast.success("Welcome! Redirecting to dashboard...");
       setTimeout(() => navigate("/dashboard"), 1000);
     } catch (error) {
-      toast.error("Login failed. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +39,7 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 relative overflow-hidden flex items-center justify-center p-4">
       <AnimatedBackground />
-      
+
       {/* Header */}
       <div className="absolute top-6 left-6 right-6 flex items-center justify-between z-10">
         <Link to="/" className="flex items-center gap-3 group">
@@ -79,6 +79,7 @@ const Login = () => {
               <Input
                 id="email"
                 type="email"
+                autoComplete="username"
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -86,12 +87,13 @@ const Login = () => {
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -99,10 +101,10 @@ const Login = () => {
                 required
               />
             </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full" 
+
+            <Button
+              type="submit"
+              className="w-full"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -118,11 +120,11 @@ const Login = () => {
 
           <div className="text-center space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Join thousands of users who trust FactState to detect fake content and protect themselves from misinformation.
+              Sign in to use the configured verification services.
             </p>
-            
+
             <div className="text-xs text-slate-500 dark:text-slate-500">
-              Demo credentials: any email and password will work
+              Use the analyst credentials configured by your administrator.
             </div>
           </div>
 

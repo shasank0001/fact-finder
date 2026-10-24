@@ -3,8 +3,8 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  Shield, 
+import {
+  Shield,
   Home,
   FileText,
   AlertTriangle,
@@ -25,7 +25,8 @@ import { ShoppingCart } from "lucide-react";
 const sidebarItems = [
   { icon: Home, label: "Dashboard", path: "/dashboard" },
   { icon: FileText, label: "Fake News", path: "/fake-news" },
-  // ...existing code...
+  { icon: ShoppingCart, label: "Website Risk", path: "/fake-ecommerce" },
+  { icon: Search, label: "Job Risk", path: "/scam-jobs" },
   { icon: Image, label: "AI Images", path: "/ai-images" },
   { icon: History, label: "History", path: "/history" },
   { icon: Settings, label: "Settings", path: "/settings" },
@@ -43,9 +44,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
+  const handleLogout = async () => {
+    try { await logout(); navigate("/"); } catch { /* Preserve session state when logout fails. */ }
   };
 
   const isActivePath = (path: string) => location.pathname === path;
@@ -54,7 +54,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
       {/* Mobile menu overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -148,7 +148,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               <Menu className="w-5 h-5" />
             </Button>
-            
+
             <div className="flex items-center gap-4 ml-auto">
               <ThemeToggle />
             </div>

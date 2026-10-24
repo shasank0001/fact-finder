@@ -33,7 +33,7 @@ const APIDocs = () => {
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">APIs as a Service</h1>
-          <p className="text-slate-600 dark:text-slate-400">Simple REST endpoints to integrate fake detection into your apps.</p>
+          <p className="text-slate-600 dark:text-slate-400">All analysis routes require a signed login cookie or a server-issued Bearer token.</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">Base URL: <code>http://localhost:8000</code></p>
         </div>
 
@@ -59,7 +59,7 @@ const APIDocs = () => {
               body={[
                 "url: string (required, valid URL)",
               ]}
-              notes={["Advanced 8-layer verification, returns badge and advice"]}
+              notes={["Risk signals and unavailable checks; returns badge and advice"]}
             />
 
             <Row
@@ -75,7 +75,7 @@ const APIDocs = () => {
             <Row
               method="GET"
               path="/ecommerce/compare?url=..."
-              notes={["Compares basic vs advanced analysis for the same URL"]}
+              notes={["Basic and advanced share one maintained scoring pipeline"]}
             />
 
             <Row
@@ -84,7 +84,7 @@ const APIDocs = () => {
               body={[
                 "multipart/form-data: file (required) — image binary",
               ]}
-              notes={["Requires torch and transformers installed on the server"]}
+              notes={["Requires optional image dependencies and local model weights; returns 503 when unavailable"]}
             />
           </CardContent>
         </Card>

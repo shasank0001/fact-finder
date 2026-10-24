@@ -1,33 +1,40 @@
 from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+import asyncio
 
 from ..db import get_session
 from ..models.schemas import CheckSiteRequest, RiskResult, FeedbackRequest, SiteHistoryResponse, HistoryPoint
 from ..models.tables import SiteScan, Feedback
 from ..services.scoring import evaluate_all, to_badge, advice_for
-from ..services.risk_rules import apply_safety_gates
+from ..services.risk_rules import badge_for
+from factfinder.security import require_user
 
-router = APIRouter(prefix="/api", tags=["ecommerce"])
+_scan_slots = asyncio.Semaphore(8)
+
+router = APIRouter(prefix="/api", tags=["ecommerce"], dependencies=[Depends(require_user)])
 
 @router.post("/check-site", response_model=RiskResult)
 async def check_site(payload: CheckSiteRequest, session: Session = Depends(get_session)):
-    score, reasons = await evaluate_all(str(payload.url), session=session)
-    badge = to_badge(score)
-    # Apply safety gates to enforce conservative classification
-    reason_dicts = [{"layer": r.layer, "message": r.message, "weight": r.weight, "score": r.score} for r in reasons]
-    adjusted_score, gated_badge = apply_safety_gates(str(payload.url), reason_dicts, score)
-    badge = gated_badge
-    payment, actions = advice_for(adjusted_score)
+    if _scan_slots.locked():
+        raise HTTPException(429, "Website scanner is busy")
+    async with _scan_slots:
+        try:
+            score, reasons = await asyncio.wait_for(evaluate_all(str(payload.url), session=session), 15)
+        except TimeoutError:
+            raise HTTPException(504, "Website scan timed out") from None
+    adjusted_score = score
+    badge = badge_for(score)
+    payment, actions = advice_for(score)
 
     scan = SiteScan(
         url=str(payload.url),
         risk_score=adjusted_score,
         badge=badge,
         reasons_json=json.dumps([r.__dict__ for r in reasons]),
-        scanned_at=datetime.utcnow(),
+        scanned_at=datetime.now(timezone.utc),
     )
     session.add(scan)
     session.commit()
@@ -38,7 +45,7 @@ async def check_site(payload: CheckSiteRequest, session: Session = Depends(get_s
         badge=badge,
         reasons=[
             # reconstruct Reason-like dicts for the API model
-            {"layer": r.layer, "message": r.message, "weight": r.weight, "score": r.score}
+            r.__dict__
             for r in reasons
         ],
         advice={"payment": payment, "actions": actions},
@@ -51,7 +58,7 @@ async def submit_feedback(payload: FeedbackRequest, session: Session = Depends(g
     fb = Feedback(url=str(payload.url), delivered=payload.delivered, order_hash=payload.order_hash)
     session.add(fb)
     session.commit()
-    return {"status": "ok", "message": "Feedback recorded"}
+    return {"status": "ok", "message": "Unverified feedback recorded; only reviewed evidence affects scoring"}
 
 
 @router.get("/site-history", response_model=SiteHistoryResponse)

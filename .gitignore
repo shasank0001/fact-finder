@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -302,3 +302,9 @@ Thumbs.db
 .Trashes
 ehthumbs.db
 Thumbs.db
+node_modules/
+dist/
+*.egg-info/
+.pytest_cache/
+data/
+models_cache/

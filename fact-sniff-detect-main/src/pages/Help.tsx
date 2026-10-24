@@ -8,38 +8,12 @@ import { HelpCircle, Search, MessageCircle, Mail, FileText, Video, BookOpen, Zap
 import { useState } from "react";
 
 const faqData = [
-  {
-    question: "How accurate is FactState's AI detection?",
-    answer: "FactState uses advanced machine learning algorithms with an average accuracy rate of 94-98% across different content types. Our models are continuously updated with the latest detection techniques and trained on millions of data points."
-  },
-  {
-    question: "What types of content can FactState analyze?",
-    answer: "FactState can analyze fake news articles, manipulated social media content, AI-generated images, deepfake videos, and AI-written text. We support URLs, direct text input, and file uploads."
-  },
-  {
-    question: "How long does it take to analyze content?",
-    answer: "Analysis time varies by content type: Text and URLs typically take 10-30 seconds, images take 30-60 seconds, and videos can take 1-3 minutes depending on length and complexity."
-  },
-  {
-    question: "Is my data stored or shared?",
-    answer: "We prioritize your privacy. Content is analyzed in real-time and not permanently stored unless you save it to your history. We never share your data with third parties and use enterprise-grade encryption."
-  },
-  {
-    question: "Can I use FactState for commercial purposes?",
-    answer: "Yes! We offer business plans with API access, bulk analysis, and white-label solutions. Contact our sales team for enterprise pricing and custom integrations."
-  },
-  {
-    question: "What should I do if I disagree with a result?",
-    answer: "If you believe a result is incorrect, you can report it through the 'Report Issue' button on any analysis page. Our team reviews all reports and continuously improves our algorithms based on feedback."
-  },
-  {
-    question: "Do you offer API access?",
-    answer: "Yes, we provide REST API access for developers and businesses. API documentation, rate limits, and pricing are available in your account settings under the 'API Access' section."
-  },
-  {
-    question: "How do I interpret the risk scores?",
-    answer: "Risk scores range from 0-100%: 0-30% indicates authentic/safe content, 31-70% suggests suspicious content requiring caution, and 71-100% indicates high probability of fake/manipulated content."
-  }
+  {question: "How accurate are the checks?", answer: "No application-wide accuracy benchmark has been established. Website and job checks are heuristics. News depends on external evidence. Image outputs estimate origin, not factual truth."},
+  {question: "Which detectors are available?", answer: "News, website and job checks are implemented. Image checks require optional local model setup. AI-text, social-post and video detection are unavailable."},
+  {question: "Is my data stored or shared?", answer: "Website scans and feedback are stored. News queries and article text go to the configured Gemini provider, and website URLs may go to Safe Browsing. Proof documents are stored locally with restricted permissions; deployment storage policies apply."},
+  {question: "How should I interpret risk scores?", answer: "Scores are heuristic signals, not probabilities. Website scores below 25 are Low Risk, 25–44 Caution, 45–69 High Risk, and 70–100 Critical. Missing verification forces at least Caution. Independently verify important decisions."},
+  {question: "How do I access the API?", answer: "Use a signed login session or a server-issued service token. Ask your administrator for access. Do not store service tokens in frontend code."},
+  {question: "How is feedback verified?", answer: "Ordinary reports are stored as unverified. Evidence submissions require distinct documents and remain pending until an authorized reviewer examines them. Upload metadata and hashes do not verify a transaction."}
 ];
 
 const Help = () => {

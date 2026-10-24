@@ -173,7 +173,7 @@ app.post('/scan-and-send', authMiddleware, async (req: Request, res: Response) =
   const { url, phone } = req.body as { url?: string, phone?: string }
   if (!url || !phone) return res.status(400).json({ error: 'url and phone are required' })
   try {
-    const { data } = await axios.post(`${FASTAPI_BASE_URL}/check-site`, { url })
+    const { data } = await axios.post(`${FASTAPI_BASE_URL}/check-site`, { url }, {headers: {Authorization: `Bearer ${process.env.API_ACCESS_TOKEN || ""}`}})
     const lines: string[] = []
     lines.push(`FactState report for: ${data.url}`)
     lines.push(`Badge: ${data.badge} | Risk: ${data.risk_score.toFixed(2)}/100`)

@@ -17,7 +17,7 @@ const AIImageDetector = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<ReturnType<typeof processApiResponse> | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -26,14 +26,14 @@ const AIImageDetector = () => {
         toast.error("Please select a valid image file");
         return;
       }
-      
+
       if (file.size > 10 * 1024 * 1024) {
         toast.error("File size must be less than 10MB");
         return;
       }
-      
+
       setImageFile(file);
-      
+
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
@@ -44,24 +44,20 @@ const AIImageDetector = () => {
 
   const processApiResponse = (data: ImageAnalysisResult) => {
     const predictions = data.prediction;
-    
+
     let aiScore = 0;
     let humanScore = 0;
-    
+
     if (predictions.ai !== undefined && predictions.human !== undefined) {
       aiScore = predictions.ai;
       humanScore = predictions.human;
     } else {
-      const keys = Object.keys(predictions);
-      if (keys.length >= 2) {
-        aiScore = predictions[keys[0]];
-        humanScore = predictions[keys[1]];
-      }
+      throw new Error("Unsupported image model response");
     }
 
     const aiPercentage = Math.round(aiScore * 100);
     const humanPercentage = Math.round(humanScore * 100);
-    
+
     let verdict = 'Inconclusive';
     if (aiPercentage > 70) {
       verdict = 'AI Generated';
@@ -70,7 +66,7 @@ const AIImageDetector = () => {
     }
 
     // Simplified verdict label for UI (no percentages shown)
-  const simpleVerdict = verdict === 'AI Generated' ? 'AI Generated' : verdict === 'Human Created' ? 'Legit' : 'Inconclusive';
+  const simpleVerdict = verdict === 'AI Generated' ? 'AI Generated' : verdict === 'Human Created' ? 'Likely human origin' : 'Inconclusive';
 
     const hasMetadata = data.metadata && Object.keys(data.metadata).length > 0;
 
@@ -100,6 +96,7 @@ const AIImageDetector = () => {
     try {
   const response = await fetch(API_ENDPOINTS.IMAGES.ANALYZE, {
         method: "POST",
+        credentials: "include",
         body: formData,
       });
 
@@ -111,9 +108,9 @@ const AIImageDetector = () => {
       const data: ImageAnalysisResult = await response.json();
       const formattedResults = processApiResponse(data);
       setResults(formattedResults);
-      
+
       if (formattedResults.aiPercentage > 70) {
-        toast.error("🤖 High probability of AI generation detected!");
+        toast.error("🤖 The classifier favors AI origin.");
       } else {
         toast.success("✅ Analysis complete");
       }
@@ -130,7 +127,7 @@ const AIImageDetector = () => {
     // Support both old and simplified labels
     switch (verdict) {
       case 'Human Created':
-      case 'Legit':
+      case 'Likely human origin':
         return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400';
       case 'AI Generated':
       case 'AI':
@@ -157,13 +154,13 @@ const AIImageDetector = () => {
         message: 'This image appears to be AI-generated.',
       };
     }
-    if (v === 'Legit' || v === 'Human Created') {
+    if (v === 'Likely human origin' || v === 'Human Created') {
       return {
-        label: 'Legit',
+        label: 'Likely human origin',
         ring: 'ring-emerald-200/70 dark:ring-emerald-800/40',
         gradient: 'from-emerald-500 to-green-600',
         icon: <CheckCircle className="w-5 h-5" />,
-        message: 'This image looks authentic.',
+        message: 'The classifier favors human origin. This does not verify the image or its context.',
       };
     }
     return {
@@ -217,15 +214,15 @@ const AIImageDetector = () => {
                       </p>
                       <p className="text-xs text-slate-500">PNG, JPG, JPEG up to 10MB</p>
                     </div>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      onChange={handleFileChange} 
-                      accept="image/*" 
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileChange}
+                      accept="image/*"
                     />
                   </label>
                 </div>
-                
+
                 {imagePreview && (
                   <div className="mt-4">
                     <div className="relative">
@@ -299,9 +296,9 @@ const AIImageDetector = () => {
                   {(() => {
                     const theme = getVerdictTheme(results.simpleVerdict ?? results.verdict);
                     return (
-                      <div className={`p-8 rounded-2xl border border-white/20 ring-1 ${theme.ring} bg-white/80 dark:bg-slate-800/70 shadow-sm`}> 
+                      <div className={`p-8 rounded-2xl border border-white/20 ring-1 ${theme.ring} bg-white/80 dark:bg-slate-800/70 shadow-sm`}>
                         <div className="flex flex-col items-center text-center space-y-5">
-                          <div className={`w-28 h-28 rounded-full bg-gradient-to-br ${theme.gradient} shadow-lg ring-4 ring-white/60 dark:ring-white/10 flex items-center justify-center`}> 
+                          <div className={`w-28 h-28 rounded-full bg-gradient-to-br ${theme.gradient} shadow-lg ring-4 ring-white/60 dark:ring-white/10 flex items-center justify-center`}>
                             {React.cloneElement(theme.icon as React.ReactElement, { className: 'w-14 h-14 text-white' })}
                           </div>
                           <div className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">

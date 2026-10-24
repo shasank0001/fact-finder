@@ -111,7 +111,7 @@ async function handleRestart(client, user) {
 }
 
 // HTTP client
-const axiosClient = axios.create({ baseURL: BASE_URL, timeout: 30000 });
+const axiosClient = axios.create({ baseURL: BASE_URL, timeout: 60000, headers: { Authorization: `Bearer ${process.env.API_ACCESS_TOKEN || ''}` } });
 
 // Backend integrations
 async function backendNewsVerify(query) {
@@ -177,7 +177,7 @@ function summarizeEcomBasic(result) {
   if (!result) return 'No result.';
   const verdict = result.verdict || 'Unknown';
   const score = result.risk_score ?? 'n/a';
-  return `Verdict: ${verdict}\nRisk Score: ${score}/8`;
+  return `Verdict: ${verdict}\nRisk Score: ${score}/100`;
 }
 
 function summarizeEcomAdvanced(result) {

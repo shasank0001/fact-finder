@@ -1,5 +1,1 @@
-fastapi
-uvicorn
-pydantic==2.7.1
-requests==2.31.0
-python-multipart==0.0.9
+-r ../../requirements.txt

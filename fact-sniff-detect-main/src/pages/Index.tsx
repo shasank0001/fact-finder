@@ -29,7 +29,7 @@ const detectionServices = [
   {
     icon: Image,
     title: "AI-Generated Images",
-    description: "Detect artificially created or manipulated images",
+    description: "Estimate whether an image has AI or human origin",
     path: "/ai-images"
   }
 ];
@@ -47,7 +47,7 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 relative overflow-hidden">
       <AnimatedBackground />
       {/* <MouseTrail /> */}
-      
+
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between p-6 max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
@@ -58,7 +58,7 @@ const Index = () => {
             FactState
           </span>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <ThemeToggle />
           {isAuthenticated ? (
@@ -73,8 +73,8 @@ const Index = () => {
                   {user?.name}
                 </span>
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={handleLogout}
                 className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20 hover:bg-white dark:hover:bg-slate-700"
               >
@@ -82,8 +82,8 @@ const Index = () => {
               </Button>
             </div>
           ) : (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate('/login')}
               className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20 hover:bg-white dark:hover:bg-slate-700"
             >
@@ -106,7 +106,7 @@ const Index = () => {
                 Verify the Real.
               </span>
             </h1>
-            
+
             <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
               Advanced AI-powered platform to detect fake content, misinformation, and digital fraud across all major platforms and formats.
             </p>
@@ -115,15 +115,15 @@ const Index = () => {
           <div className="animate-slide-up flex flex-col sm:flex-row gap-4 justify-center items-center">
             {isAuthenticated ? (
               <>
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   onClick={() => navigate('/dashboard')}
                   className="bg-primary hover:bg-primary/90 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 animate-pulse-glow"
                 >
                   Go to Dashboard
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   onClick={() => navigate('/fake-news')}
                   className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20 hover:bg-white dark:hover:bg-slate-700 px-8 py-4 text-lg font-semibold rounded-xl"
@@ -133,15 +133,15 @@ const Index = () => {
               </>
             ) : (
               <>
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   onClick={() => navigate('/login')}
                   className="bg-primary hover:bg-primary/90 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 animate-pulse-glow"
                 >
                   Start Free Check
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   onClick={() => navigate('/help')}
                   className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20 hover:bg-white dark:hover:bg-slate-700 px-8 py-4 text-lg font-semibold rounded-xl"
@@ -163,10 +163,10 @@ const Index = () => {
               From social media posts to job offers, we help you verify almost anything you find online
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {detectionServices.map((service, index) => (
-              <Card 
+              <Card
                 key={service.title}
                 className="group hover:scale-105 transition-all duration-300 cursor-pointer bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-white/20 hover:shadow-2xl animate-scale-in hover-lift"
                 style={{ animationDelay: `${index * 100}ms` }}
@@ -206,35 +206,35 @@ const Index = () => {
               Our cutting-edge technology combines multiple AI models to provide the most accurate detection results
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-2xl mx-auto">
                 <Zap className="w-8 h-8 text-blue-500" />
               </div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Lightning Fast</h3>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Connected Checks</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Get results in seconds with our optimized AI algorithms and cloud infrastructure
+                Analysis time depends on the configured services and available evidence
               </p>
             </div>
-            
+
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-2xl mx-auto">
                 <CheckCircle className="w-8 h-8 text-green-500" />
               </div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">99.8% Accuracy</h3>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Evidence and Limitations</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Industry-leading accuracy rate backed by extensive testing and validation
+                Inspect cited evidence and unavailable checks. Accuracy has not been independently benchmarked.
               </p>
             </div>
-            
+
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-2xl mx-auto">
                 <Lock className="w-8 h-8 text-purple-500" />
               </div>
               <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Privacy First</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Your data is encrypted and never stored. We prioritize your privacy and security
+                Website scans and submitted feedback are stored. News checks send content to the configured external provider.
               </p>
             </div>
           </div>
@@ -250,7 +250,7 @@ const Index = () => {
               Our three-step process makes detecting fake content simple and reliable
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-2xl mx-auto">
@@ -261,7 +261,7 @@ const Index = () => {
                 Simply paste a URL, upload an image, or copy text content you want to verify
               </p>
             </div>
-            
+
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-2xl mx-auto">
                 <span className="text-2xl font-bold text-green-500">2</span>
@@ -271,14 +271,14 @@ const Index = () => {
                 Our advanced AI models analyze multiple factors to detect patterns and inconsistencies
               </p>
             </div>
-            
+
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-2xl mx-auto">
                 <span className="text-2xl font-bold text-purple-500">3</span>
               </div>
               <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Get Results</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Receive detailed analysis with confidence scores and explanations in seconds
+                Receive analysis with explanations, evidence where available, and explicit uncertainty
               </p>
             </div>
           </div>
@@ -290,21 +290,21 @@ const Index = () => {
             Ready to Start Detecting?
           </h2>
           <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            Join thousands of users who trust FactState to keep them safe from misinformation and fraud
+            Use automated checks as a starting point for independent verification
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             {isAuthenticated ? (
               <>
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   onClick={() => navigate('/dashboard')}
                   className="bg-primary hover:bg-primary/90 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300"
                 >
                   Go to Dashboard
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   onClick={() => navigate('/fake-news')}
                   className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20 hover:bg-white dark:hover:bg-slate-700 px-8 py-4 text-lg font-semibold rounded-xl"
@@ -315,16 +315,16 @@ const Index = () => {
               </>
             ) : (
               <>
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   onClick={() => navigate('/login')}
                   className="bg-primary hover:bg-primary/90 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300"
                 >
                   Get Started Free
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   onClick={() => navigate('/help')}
                   className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20 hover:bg-white dark:hover:bg-slate-700 px-8 py-4 text-lg font-semibold rounded-xl"
@@ -342,7 +342,7 @@ const Index = () => {
           <div className="flex items-center justify-center gap-8 flex-wrap">
             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
               <Shield className="w-5 h-5 text-emerald-500" />
-              <span className="font-medium">99.8% Accuracy</span>
+              <span className="font-medium">Evidence and Limitations</span>
             </div>
             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
               <Eye className="w-5 h-5 text-blue-500" />
@@ -350,7 +350,7 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
               <Search className="w-5 h-5 text-amber-500" />
-              <span className="font-medium">Real-time Detection</span>
+              <span className="font-medium">Automated Assistance</span>
             </div>
           </div>
         </div>

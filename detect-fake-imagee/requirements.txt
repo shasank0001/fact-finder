@@ -1,6 +1,1 @@
-transformers
-torch
-torchvision
-pillow
-sentencepiece
-protobuf
+-r ../requirements-image.txt

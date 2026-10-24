@@ -41,7 +41,7 @@ interface NewsVerificationResult {
       url: string;
       publication_date: string;
     }>;
-    claims_analysis: Array<any>;
+    claims_analysis: unknown[];
   };
 }
 
@@ -57,32 +57,34 @@ const FakeNewsDetector = () => {
       return;
     }
 
+    setResults(null);
     setIsScanning(true);
     toast.info("Starting fact-checking analysis...");
 
     try {
   const response = await fetch(API_ENDPOINTS.NEWS.ANALYZE, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: inputValue })
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log("Backend response:", data); // Debug log
-      
+
       // The backend returns { result: { verdict, explanation, parsed_output, grounding_metadata } }
       const result = data.result;
-      
+
       if (!result) {
         throw new Error("No result returned from backend");
       }
-      
+
       setResults(result);
-      
+
       // Show appropriate toast based on result
       if (result.verdict === "False") {
         toast.error("⚠️ Likely false information detected!");
@@ -95,7 +97,7 @@ const FakeNewsDetector = () => {
       } else {
         toast.info("Analysis complete - check results for details");
       }
-      
+
     } catch (error) {
       console.error("Analysis error:", error);
       toast.error("Failed to verify news. Please try again.");
@@ -155,21 +157,6 @@ const FakeNewsDetector = () => {
     }
   };
 
-  const getConfidenceFromVerdict = (verdict: string) => {
-    // Since the new API doesn't provide confidence, we'll estimate based on verdict
-    switch (verdict) {
-      case 'True':
-        return 85;
-      case 'False':
-        return 90;
-      case 'Uncertain':
-        return 40;
-      case 'Error':
-        return 0;
-      default:
-        return 50;
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -327,15 +314,13 @@ const FakeNewsDetector = () => {
                     <Badge className={`px-4 py-2 text-sm font-semibold ${getResultColor(results.verdict)}`}>
                       {getVerdictDisplayText(results.verdict)}
                     </Badge>
-                    <Badge variant="outline" className={`px-3 py-1 text-emerald-600`}>
-                      {getConfidenceFromVerdict(results.verdict)}% Confidence
-                    </Badge>
+
                   </div>
 
                   {/* Status */}
                   <div className={`p-4 rounded-lg border-2 ${
-                    results.verdict === "False" 
-                      ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' 
+                    results.verdict === "False"
+                      ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
                       : results.verdict === "True"
                       ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800'
                       : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
@@ -343,8 +328,8 @@ const FakeNewsDetector = () => {
                     <div className="flex items-center gap-2 font-semibold">
                       {getResultIcon(results.verdict)}
                       <span className={
-                        results.verdict === "False" 
-                          ? 'text-red-800 dark:text-red-400' 
+                        results.verdict === "False"
+                          ? 'text-red-800 dark:text-red-400'
                           : results.verdict === "True"
                           ? 'text-emerald-800 dark:text-emerald-400'
                           : 'text-amber-800 dark:text-amber-400'
@@ -381,8 +366,8 @@ const FakeNewsDetector = () => {
                               <p className="text-sm font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
                                 {claim.claim_text}
                               </p>
-                              <Badge 
-                                variant="outline" 
+                              <Badge
+                                variant="outline"
                                 className={`text-xs flex-shrink-0 ${
                                   claim.evaluation === 'Supported' ? 'text-emerald-700 border-emerald-300' :
                                   claim.evaluation === 'Refuted' ? 'text-red-700 border-red-300' :
@@ -425,9 +410,9 @@ const FakeNewsDetector = () => {
                                   {source.source_title}
                                 </p>
                                 {source.url && (
-                                  <a 
-                                    href={source.url} 
-                                    target="_blank" 
+                                  <a
+                                    href={source.url}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline line-clamp-1"
                                   >
@@ -475,7 +460,7 @@ const FakeNewsDetector = () => {
                           </div>
                         </>
                       )}
-                      
+
                       {results.verdict === "Uncertain" && (
                         <>
                           <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -492,7 +477,7 @@ const FakeNewsDetector = () => {
                           </div>
                         </>
                       )}
-                      
+
                       {results.verdict === "True" && (
                         <div className="flex items-start gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
                           <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />

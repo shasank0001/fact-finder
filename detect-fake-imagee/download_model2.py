@@ -1,24 +1,13 @@
+"""Explicit optional model download; run from the repository root."""
 import os
-from transformers import AutoImageProcessor, AutoModelForImageClassification
+import re
+from dotenv import load_dotenv
+load_dotenv()
+from huggingface_hub import snapshot_download
 
-# Define the cache directory
-cache_dir = "models_cache"
-if not os.path.exists(cache_dir):
-    os.makedirs(cache_dir)
-
-# Specify the model name
-model_name = "Ateeqq/ai-vs-human-image-detector"
-
-try:
-    # Download and cache the image processor
-    print("Downloading image processor...")
-    image_processor = AutoImageProcessor.from_pretrained(model_name, cache_dir=cache_dir)
-    print("Image processor downloaded successfully.")
-
-    # Download and cache the model
-    print("Downloading model...")
-    model = AutoModelForImageClassification.from_pretrained(model_name, cache_dir=cache_dir)
-    print("Model downloaded successfully.")
-
-except Exception as e:
-    print(f"An error occurred: {e}")
+if __name__ == "__main__":
+    revision = os.getenv("IMAGE_MODEL_REVISION")
+    if not revision or not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise SystemExit("Set IMAGE_MODEL_REVISION to the full 40-character model commit you have reviewed")
+    snapshot_download(repo_id="Ateeqq/ai-vs-human-image-detector", revision=revision,
+                      local_dir=os.getenv("IMAGE_MODEL_PATH", "models_cache/ai-image-detector"))

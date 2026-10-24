@@ -1,359 +1,136 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
-from sqlmodel import Session, select
-from typing import List, Optional
-from datetime import datetime
-import json
 import hashlib
-import uuid
-
+import io
+import json
+import os
+from pathlib import Path
+from typing import Literal
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from PIL import Image, UnidentifiedImageError
+from pydantic import ValidationError
+from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
+from factfinder.security import require_user, require_admin
 from ..db import get_session
-from ..models.tables import VerifiedFeedback, UserReputationScore, FeedbackStatus
-from ..services.verified_feedback import VerifiedFeedbackAPI, ProofType
-from pydantic import BaseModel
+from ..models.tables import VerifiedFeedback, FeedbackProof, FeedbackStatus
+from ..services.verified_feedback import VerifiedFeedbackAPI, ProofType, OrderDetails, FeedbackOutcome
 
-router = APIRouter(prefix="/api/verified-feedback", tags=["Verified Feedback"])
-
-# Pydantic models for API
-class OrderDetails(BaseModel):
-    order_id: str
-    payment_id: str
-    amount: float
-    order_date: datetime
-    product_name: str
-    product_description: Optional[str] = None
-    expected_delivery: Optional[datetime] = None
-
-class FeedbackOutcome(BaseModel):
-    delivered: bool
-    delivery_quality: Optional[int] = None  # 1-5 rating
-    payment_issues: bool = False
-    product_matches_description: Optional[bool] = None
-    delivery_date: Optional[datetime] = None
-    additional_notes: Optional[str] = None
-
-class ProofFileMetadata(BaseModel):
-    filename: str
-    file_type: str
-    proof_type: ProofType
-    timestamp: float
-    file_size: int
-
-verified_feedback_api = VerifiedFeedbackAPI()
+router = APIRouter(prefix="/api/verified-feedback", tags=["Verified Feedback"], dependencies=[Depends(require_user)])
+MAX_PROOF = 5 * 1024 * 1024
 
 @router.post("/submit")
 async def submit_verified_feedback(
-    url: str = Form(...),
-    user_identifier: str = Form(...),  # Anonymous but consistent identifier
-    order_details: str = Form(...),  # JSON string
-    outcome: str = Form(...),  # JSON string
-    proof_files: List[UploadFile] = File(...),
-    proof_metadata: str = Form(...),  # JSON string with metadata for each file
-    session: Session = Depends(get_session)
+    url: str = Form(...), order_details: str = Form(...), outcome: str = Form(...),
+    proof_files: list[UploadFile] = File(...), proof_metadata: str = Form(...),
+    session: Session = Depends(get_session), user=Depends(require_user),
 ):
-    """
-    Submit verified feedback with comprehensive proof requirements
-    
-    Required proof files:
-    - Order screenshot/confirmation
-    - Payment receipt
-    - Delivery notification OR explanation for non-delivery
-    """
-    
+    from ..models.schemas import CheckSiteRequest
     try:
-        # Parse JSON inputs
-        order_data = json.loads(order_details)
-        outcome_data = json.loads(outcome)
-        metadata_list = json.loads(proof_metadata)
-        
-        # Validate minimum requirements
-        if len(proof_files) < 2:
-            raise HTTPException(
-                status_code=400, 
-                detail="Minimum 2 proof files required (order confirmation + payment receipt)"
-            )
-        
-        # Process uploaded files
-        processed_proofs = []
-        for i, file in enumerate(proof_files):
-            # Read and hash file content
-            content = await file.read()
-            file_hash = hashlib.sha256(content).hexdigest()
-            
-            # Get metadata for this file
-            file_metadata = metadata_list[i] if i < len(metadata_list) else {}
-            file_metadata.update({
-                'file_size': len(content),
-                'upload_timestamp': datetime.utcnow().timestamp()
-            })
-            
-            processed_proofs.append({
-                'type': file_metadata.get('proof_type', 'order_screenshot'),
-                'hash': file_hash,
-                'metadata': file_metadata
-            })
-            
-            # Store file securely (in production, use cloud storage)
-            # For now, just validate the hash
-        
-        # Submit to verification system
-        result = await verified_feedback_api.submit_feedback(
-            url=url,
-            user_id=user_identifier,
-            order_details=order_data,
-            proof_files=processed_proofs,
-            outcome=outcome_data
-        )
-        
-        return {
-            "success": True,
-            "verification_status": result["status"],
-            "message": result["message"],
-            "feedback_id": result.get("feedback_id"),
-            "verification_score": result.get("verification_score", 0),
-            "estimated_review_time": _get_estimated_review_time(result["status"])
-        }
-        
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON in request data")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing feedback: {str(e)}")
+        url = str(CheckSiteRequest(url=url).url)
+        order = OrderDetails.model_validate_json(order_details)
+        result = FeedbackOutcome.model_validate_json(outcome)
+        metadata = json.loads(proof_metadata)
+        if not isinstance(metadata, list) or len(metadata) != len(proof_files) or not 3 <= len(proof_files) <= 5:
+            raise ValueError("Provide three to five proofs with matching type metadata")
+        types = {ProofType(m["proof_type"]) for m in metadata}
+        required = {ProofType.ORDER_SCREENSHOT, ProofType.PAYMENT_RECEIPT,
+                    ProofType.DELIVERY_NOTIFICATION if result.delivered else ProofType.EMAIL_CONFIRMATION}
+        if not required <= types:
+            raise ValueError("Missing required distinct proof types")
+        proofs, hashes = [], set()
+        for file, meta in zip(proof_files, metadata):
+            content = await file.read(MAX_PROOF + 1)
+            await file.close()
+            if not content or len(content) > MAX_PROOF:
+                raise ValueError("Each proof must contain 1 byte to 5 MB")
+            try:
+                with Image.open(io.BytesIO(content)) as image:
+                    if image.width * image.height > 20_000_000 or image.format not in {"JPEG", "PNG"}:
+                        raise ValueError("Use PNG or JPEG proofs up to 20 megapixels")
+                    image.verify()
+                    content_type = "image/png" if image.format == "PNG" else "image/jpeg"
+            except (OSError, UnidentifiedImageError, Image.DecompressionBombError):
+                raise ValueError("Use valid PNG or JPEG proof files") from None
+            digest = hashlib.sha256(content).hexdigest()
+            if digest in hashes or session.exec(select(FeedbackProof).where(FeedbackProof.file_hash == digest)).first():
+                raise ValueError("Duplicate proof: each document may be submitted only once")
+            hashes.add(digest)
+            proofs.append({"type": ProofType(meta["proof_type"]).value, "hash": digest,
+                           "size": len(content), "content_type": content_type, "content": content})
+        stored_metadata = [{k: v for k, v in proof.items() if k != "content"} for proof in proofs]
+        response = await VerifiedFeedbackAPI().submit_feedback(url, user["id"], order.model_dump(), stored_metadata, result.model_dump(), session)
+        folder = Path(os.getenv("PROOF_STORAGE_DIR", "data/proofs"))
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(folder, 0o700)
+        created = []
+        try:
+            for proof in proofs:
+                path = folder / proof["hash"]
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                created.append(path)
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(proof["content"])
+                session.add(FeedbackProof(feedback_id=response["feedback_id"], file_hash=proof["hash"], storage_path=str(path.resolve()), content_type=proof["content_type"]))
+            session.commit()
+        except Exception:
+            session.rollback()
+            for path in created:
+                path.unlink(missing_ok=True)
+            raise
+        return {"success": True, **response}
+    except HTTPException:
+        session.rollback()
+        raise
+    except (ValueError, KeyError, TypeError, ValidationError) as exc:
+        session.rollback()
+        raise HTTPException(422, "Invalid evidence or order details") from None
+    except (IntegrityError, FileExistsError):
+        session.rollback()
+        raise HTTPException(409, "Proof already submitted") from None
 
 @router.get("/requirements")
-async def get_verification_requirements():
-    """Get detailed requirements for feedback verification"""
-    
-    return {
-        "required_documents": {
-            "for_delivered_orders": [
-                {
-                    "type": "order_screenshot",
-                    "description": "Screenshot of order confirmation page",
-                    "required_elements": ["Order ID", "Product name", "Amount", "Merchant name"],
-                    "accepted_formats": ["PNG", "JPG", "PDF"]
-                },
-                {
-                    "type": "payment_receipt",
-                    "description": "Payment confirmation from bank/gateway",
-                    "required_elements": ["Transaction ID", "Amount", "Date", "Merchant"],
-                    "accepted_formats": ["PNG", "JPG", "PDF"]
-                },
-                {
-                    "type": "delivery_notification",
-                    "description": "Delivery confirmation or tracking update",
-                    "required_elements": ["Delivery date", "Address", "Tracking number"],
-                    "accepted_formats": ["PNG", "JPG", "PDF"]
-                }
-            ],
-            "for_scam_reports": [
-                {
-                    "type": "order_screenshot",
-                    "description": "Screenshot of order confirmation page",
-                    "required_elements": ["Order ID", "Product name", "Amount", "Merchant name"],
-                    "accepted_formats": ["PNG", "JPG", "PDF"]
-                },
-                {
-                    "type": "payment_receipt", 
-                    "description": "Proof of payment made",
-                    "required_elements": ["Transaction ID", "Amount", "Date", "Merchant"],
-                    "accepted_formats": ["PNG", "JPG", "PDF"]
-                },
-                {
-                    "type": "email_confirmation",
-                    "description": "Email communications with merchant",
-                    "required_elements": ["Email addresses", "Dates", "Response attempts"],
-                    "accepted_formats": ["PNG", "JPG", "PDF", "EML"]
-                }
-            ]
-        },
-        "verification_process": {
-            "steps": [
-                "Document upload and hashing",
-                "Automated validation of order details",
-                "OCR extraction of key information",
-                "Cross-validation of data consistency", 
-                "Manual review by verification team",
-                "Final scoring and impact calculation"
-            ],
-            "timeline": "2-5 business days for standard verification",
-            "appeal_process": "Available for rejected verifications"
-        },
-        "privacy_protection": {
-            "data_anonymization": "Personal details are hashed and anonymized",
-            "file_encryption": "All proof files are encrypted at rest",
-            "retention_policy": "Verification data retained for 2 years maximum",
-            "user_rights": "Right to deletion and data export available"
-        }
-    }
+def requirements():
+    return {"required_types": ["order_screenshot", "payment_receipt", "delivery_notification OR email_confirmation for non-delivery"],
+            "accepted_formats": ["PNG", "JPEG"], "max_bytes_per_file": MAX_PROOF,
+            "verification": "Manual review required; hashes and metadata do not prove authenticity",
+            "storage": "Local restricted files; deployment must supply encrypted storage and a retention policy"}
 
 @router.get("/status")
-async def list_verification_status(
-    url: str,
-    session: Session = Depends(get_session)
-):
-    """List verification records for a URL (lightweight summary for UI)."""
-    rows = session.exec(
-        select(VerifiedFeedback).where(VerifiedFeedback.url == url)
-    ).all()
-
-    out = []
-    for r in rows:
-        rep = session.exec(
-            select(UserReputationScore).where(UserReputationScore.user_id == r.user_id)
-        ).first()
-        doc_status = (
-            "verified" if r.status in [FeedbackStatus.VERIFIED_DELIVERED, FeedbackStatus.VERIFIED_SCAM] else
-            "pending" if r.status in [FeedbackStatus.PENDING_VERIFICATION] else
-            "failed"
-        )
-        out.append({
-            "id": r.id,
-            "url": r.url,
-            "verification_status": r.status,
-            "document_verification_status": doc_status,
-            "user_reputation_score": rep.reputation_score if rep else 50.0,
-            "created_at": r.submission_time,
-            "updated_at": r.submission_time,
-        })
-    return out
+def list_status(url: str, session: Session = Depends(get_session), user=Depends(require_user)):
+    rows = session.exec(select(VerifiedFeedback).where(VerifiedFeedback.url == url, VerifiedFeedback.user_id == user["id"])).all()
+    return [{"id": r.id, "url": r.url, "verification_status": r.status, "created_at": r.submission_time} for r in rows]
 
 @router.get("/status/{feedback_id}")
-async def get_verification_status(
-    feedback_id: int,
-    session: Session = Depends(get_session)
-):
-    """Check verification status of submitted feedback"""
-    
-    feedback = session.get(VerifiedFeedback, feedback_id)
-    if not feedback:
-        raise HTTPException(status_code=404, detail="Feedback not found")
-    
-    return {
-        "feedback_id": feedback_id,
-        "status": feedback.status,
-        "verification_score": feedback.verification_score,
-        "weight": feedback.weight,
-        "submission_time": feedback.submission_time,
-        "review_notes": feedback.verification_notes,
-        "estimated_completion": _get_estimated_completion(feedback)
-    }
+def get_status(feedback_id: int, session: Session = Depends(get_session), user=Depends(require_user)):
+    row = session.get(VerifiedFeedback, feedback_id)
+    if not row or row.user_id != user["id"]:
+        raise HTTPException(404, "Feedback not found")
+    return {"feedback_id": row.id, "status": row.status, "review_notes": row.verification_notes}
 
-@router.get("/user/{user_id}/reputation")
-async def get_user_reputation(
-    user_id: str,
-    session: Session = Depends(get_session)
-):
-    """Get user's feedback reputation score"""
-    
-    reputation = session.exec(
-        select(UserReputationScore).where(UserReputationScore.user_id == user_id)
-    ).first()
-    
-    if not reputation:
-        # Create new reputation record
-        reputation = UserReputationScore(user_id=user_id)
-        session.add(reputation)
-        session.commit()
-        session.refresh(reputation)
-    
-    return {
-        "user_id": user_id,
-        "reputation_score": reputation.reputation_score,
-        "total_feedbacks": reputation.total_feedbacks,
-        "verified_feedbacks": reputation.verified_feedbacks,
-        "false_reports": reputation.false_reports,
-        "trust_level": _calculate_trust_level(reputation.reputation_score),
-        "feedback_weight_multiplier": min(2.0, reputation.reputation_score / 50.0)
-    }
+@router.get("/admin/proofs/{proof_id}")
+def get_proof(proof_id: int, admin=Depends(require_admin), session: Session = Depends(get_session)):
+    proof = session.get(FeedbackProof, proof_id)
+    if not proof or not Path(proof.storage_path).is_file():
+        raise HTTPException(404, "Proof not found")
+    return FileResponse(proof.storage_path, media_type=proof.content_type, filename=proof.file_hash)
 
 @router.post("/admin/verify/{feedback_id}")
-async def admin_verify_feedback(
-    feedback_id: int,
-    verification_decision: str = Form(...),  # "approve", "reject", "request_more_info"
-    reviewer_notes: Optional[str] = Form(None),
-    reviewer_id: str = Form(...),
-    session: Session = Depends(get_session)
-):
-    """Admin endpoint for manual verification of feedback"""
-    
-    feedback = session.get(VerifiedFeedback, feedback_id)
-    if not feedback:
-        raise HTTPException(status_code=404, detail="Feedback not found")
-    
+def admin_verify(feedback_id: int, verification_decision: Literal["approve", "reject", "request_more_info"] = Form(...),
+                 reviewer_notes: str = Form(..., min_length=10, max_length=2000),
+                 reviewer=Depends(require_admin), session: Session = Depends(get_session)):
+    row = session.get(VerifiedFeedback, feedback_id)
+    if not row:
+        raise HTTPException(404, "Feedback not found")
     if verification_decision == "approve":
-        if feedback.delivered_successfully:
-            feedback.status = FeedbackStatus.VERIFIED_DELIVERED
-        else:
-            feedback.status = FeedbackStatus.VERIFIED_SCAM
-    elif verification_decision == "reject":
-        feedback.status = FeedbackStatus.REJECTED
+        proofs = session.exec(select(FeedbackProof).where(FeedbackProof.feedback_id == feedback_id)).all()
+        if len(proofs) < 3 or not all(Path(p.storage_path).is_file() for p in proofs):
+            raise HTTPException(409, "Reviewable proof files are missing")
+        row.status = FeedbackStatus.VERIFIED_DELIVERED if row.delivered_successfully else FeedbackStatus.VERIFIED_SCAM
+        row.weight = 1
     else:
-        feedback.status = FeedbackStatus.PENDING_VERIFICATION
-    
-    feedback.verification_notes = reviewer_notes
-    feedback.reviewer_id = reviewer_id
-    
-    # Update user reputation based on verification outcome
-    _update_user_reputation(feedback.user_id, feedback.status, session)
-    
-    session.add(feedback)
+        row.status = FeedbackStatus.REJECTED if verification_decision == "reject" else FeedbackStatus.PENDING_VERIFICATION
+        row.weight = 0
+    row.reviewer_id, row.verification_notes = reviewer, reviewer_notes
+    session.add(row)
     session.commit()
-    
-    return {
-        "success": True,
-        "feedback_id": feedback_id,
-        "new_status": feedback.status,
-        "message": "Verification completed successfully"
-    }
-
-def _get_estimated_review_time(status: FeedbackStatus) -> str:
-    """Get estimated review time based on status"""
-    if status == FeedbackStatus.VERIFICATION_FAILED:
-        return "N/A - Verification failed"
-    elif status in [FeedbackStatus.VERIFIED_DELIVERED, FeedbackStatus.VERIFIED_SCAM]:
-        return "Completed"
-    else:
-        return "2-5 business days"
-
-def _get_estimated_completion(feedback: VerifiedFeedback) -> Optional[datetime]:
-    """Calculate estimated completion time"""
-    if feedback.status in [FeedbackStatus.VERIFIED_DELIVERED, FeedbackStatus.VERIFIED_SCAM, FeedbackStatus.REJECTED]:
-        return None
-    
-    # Estimate based on current queue and complexity
-    from datetime import timedelta
-    return feedback.submission_time + timedelta(days=3)
-
-def _calculate_trust_level(reputation_score: float) -> str:
-    """Calculate user trust level"""
-    if reputation_score >= 80:
-        return "Highly Trusted"
-    elif reputation_score >= 60:
-        return "Trusted"
-    elif reputation_score >= 40:
-        return "Neutral"
-    elif reputation_score >= 20:
-        return "Low Trust"
-    else:
-        return "Untrusted"
-
-def _update_user_reputation(user_id: str, status: FeedbackStatus, session: Session):
-    """Update user reputation based on verification outcome"""
-    reputation = session.exec(
-        select(UserReputationScore).where(UserReputationScore.user_id == user_id)
-    ).first()
-    
-    if not reputation:
-        reputation = UserReputationScore(user_id=user_id)
-        session.add(reputation)
-    
-    reputation.total_feedbacks += 1
-    
-    if status in [FeedbackStatus.VERIFIED_DELIVERED, FeedbackStatus.VERIFIED_SCAM]:
-        reputation.verified_feedbacks += 1
-        reputation.reputation_score = min(100.0, reputation.reputation_score + 2.0)
-    elif status == FeedbackStatus.REJECTED:
-        reputation.false_reports += 1
-        reputation.reputation_score = max(0.0, reputation.reputation_score - 5.0)
-    
-    reputation.updated_at = datetime.utcnow()
-    session.commit()
+    return {"feedback_id": row.id, "status": row.status}

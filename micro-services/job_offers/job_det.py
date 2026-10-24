@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Optional
 from urllib.parse import urlparse
 from datetime import datetime
@@ -20,7 +20,7 @@ class CompanyInfoRequest(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
-    job_description: Optional[str] = None
+    job_description: Optional[str] = Field(default=None, max_length=20000)
     salary_offered: Optional[str] = None
     requirements: Optional[str] = None
     contact_person: Optional[str] = None
@@ -29,13 +29,13 @@ class CompanyInfoRequest(BaseModel):
     social_media: Optional[SocialMedia] = None
     job_post_date: Optional[str] = None
 
-    @validator('email')
+    @field_validator('email')
     def validate_email(cls, v):
         if v and '@' not in v:
             raise ValueError('Invalid email format')
         return v
 
-    @validator('website')
+    @field_validator('website')
     def validate_website(cls, v):
         if v and not (v.startswith('http://') or v.startswith('https://') or '.' in v):
             raise ValueError('Invalid website format')
@@ -49,7 +49,8 @@ class RiskLevel(str, Enum):
 
 class DetectionResponse(BaseModel):
     is_suspicious: bool
-    confidence_score: float = Field(..., ge=0, le=100)
+    risk_score: float = Field(..., ge=0, le=100, description="Heuristic risk score, not a calibrated probability")
+    confidence_score: float = Field(..., ge=0, le=100, deprecated=True, description="Compatibility alias of risk_score; not confidence")
     risk_level: RiskLevel
     red_flags: List[str]
     warnings: List[str]
@@ -62,7 +63,7 @@ class DetectionResponse(BaseModel):
     checks: Dict[str, str]
 
 class BatchAnalysisRequest(BaseModel):
-    companies: List[CompanyInfoRequest] = Field(..., max_items=50)
+    companies: List[CompanyInfoRequest] = Field(..., max_length=50)
 
 class BatchAnalysisResponse(BaseModel):
     total_analyzed: int
@@ -88,7 +89,7 @@ class FakeInternshipDetectorAPI:
 
         self.red_flag_keywords = {
             'urgent', 'immediate', 'guaranteed', 'no experience required',
-            'work from home', 'easy money', 'pay upfront', 'processing fee',
+            'easy money', 'pay upfront', 'processing fee',
             'registration fee', 'training fee', 'equipment fee', 'deposit',
             'wire transfer', 'western union', 'moneygram', 'bitcoin',
             'cryptocurrency', 'mlm', 'pyramid', 'get rich quick', 'passive income',
@@ -116,13 +117,27 @@ class FakeInternshipDetectorAPI:
         all_scores = [website_score, email_score, desc_score, contact_score, social_score, timing_score]
         confidence_score = sum(all_scores) / len([s for s in all_scores if s is not None])
 
+        description = (company_info.job_description or "").lower()
+        fee_patterns = [r"\bpay\s+(?:a |the )?(?:upfront|(?:registration|processing|training|equipment) fee)",
+                        r"\b(?:send|transfer|deposit)\b.{0,30}\b(?:bitcoin|crypto|money|payment)\b",
+                        r"\b(?:registration|processing|training|equipment) fee\s+(?:is )?(?:required|mandatory)"]
+        fee_request = False
+        for sentence in re.split(r"[.!?;\n]+", description):
+            for pattern in fee_patterns:
+                for match in re.finditer(pattern, sentence):
+                    prefix = sentence[:match.start()]
+                    if not re.search(r"(?:no|do not|don't|never|no need to|without having to)\s+$", prefix):
+                        fee_request = True
+        if fee_request:
+            confidence_score = max(confidence_score, 85)
         risk_level = self._calculate_risk_level(confidence_score, len(red_flags))
-        is_suspicious = confidence_score > 60 or len(red_flags) >= 4
-        reason = "High confidence score" if confidence_score > 60 else "Multiple red flags" if len(red_flags) >= 4 else "Low risk indicators"
+        is_suspicious = risk_level in {"HIGH", "CRITICAL"}
+        reason = "Upfront payment request detected" if fee_request else "High risk indicators" if confidence_score >= 60 else "Multiple red flags" if len(red_flags) >= 4 else "Low risk indicators"
 
         result = DetectionResponse(
             is_suspicious=is_suspicious,
-            confidence_score=round(confidence_score, 2),
+            risk_score=round(min(100, confidence_score), 2),
+            confidence_score=round(min(100, confidence_score), 2),
             risk_level=RiskLevel(risk_level),
             red_flags=red_flags,
             warnings=self._generate_warnings(risk_level, red_flags),
@@ -132,7 +147,7 @@ class FakeInternshipDetectorAPI:
             analysis_id=analysis_id,
             timestamp=datetime.now(),
             final_prediction_reason=reason,
-            checks={}
+            checks={"employer_identity": "unverified", "salary": "not independently evaluated", "method": "local heuristics"}
         )
 
         self.analysis_cache[analysis_id] = result
@@ -153,7 +168,7 @@ class FakeInternshipDetectorAPI:
         flags = []
         score = 0
         if email:
-            domain = email.split('@')[-1]
+            domain = email.split('@')[-1].lower()
             if domain in self.suspicious_domains:
                 flags.append("Uses free email service")
                 score += 25
@@ -165,7 +180,7 @@ class FakeInternshipDetectorAPI:
         if desc:
             lower = desc.lower()
             for keyword in self.red_flag_keywords:
-                if keyword in lower:
+                if keyword in lower and not re.search(r"(?:no|without|never)\s+(?:a |any )?" + re.escape(keyword), lower):
                     flags.append(f"Suspicious keyword found: {keyword}")
                     score += 10
         return score, flags
@@ -183,12 +198,9 @@ class FakeInternshipDetectorAPI:
         checks = {}
         score = 0
         if info.social_media:
-            for platform, url in info.social_media.dict().items():
+            for platform, url in info.social_media.model_dump().items():
                 if url:
-                    checks[f"{platform}_url"] = url
-                else:
-                    flags.append(f"Missing {platform} profile")
-                    score += 5
+                    checks[f"{platform}_url"] = f"Provided, not independently verified: {url}"
         else:
             flags.append("No social media provided")
             score += 10
@@ -197,14 +209,6 @@ class FakeInternshipDetectorAPI:
     def _timing_analysis(self, post_date):
         flags = []
         score = 0
-        if post_date:
-            try:
-                dt = datetime.strptime(post_date, '%Y-%m-%d')
-                if dt.weekday() >= 5:
-                    flags.append("Posted on weekend")
-                    score += 5
-            except:
-                pass
         return score, flags
 
     def _calculate_risk_level(self, score, red_flags):

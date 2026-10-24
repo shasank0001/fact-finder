@@ -1,8 +1,1 @@
-pinecone-client
-langchain
-langchain-google-genai
-langchain-ollama
-python-dotenv
-beautifulsoup4
-requests
-google-ai-generativelanguage
+-r ../../requirements.txt
